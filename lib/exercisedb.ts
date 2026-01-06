@@ -1,6 +1,6 @@
 // ExerciseDB v2 API wrapper
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
-const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'exercisedb-api.p.rapidapi.com';
+const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'exercisedb-api1.p.rapidapi.com';
 const BASE_URL = `https://${RAPIDAPI_HOST}`;
 
 // v2 API response structure
@@ -17,18 +17,13 @@ interface ExerciseV2 {
   overview: string;
 }
 
-interface SearchResponse {
-  success: boolean;
-  data: {
-    exercises: ExerciseV2[];
-  };
-}
-
 /**
  * Search exercises by name using v2 API
+ * Endpoint: /api/v1/exercises?name=...
  */
 async function searchExercises(query: string): Promise<ExerciseV2[]> {
-  const url = `${BASE_URL}/exercises?search=${encodeURIComponent(query)}&limit=10`;
+  // Use /api/v1/exercises with name parameter
+  const url = `${BASE_URL}/api/v1/exercises?name=${encodeURIComponent(query)}&limit=10`;
   console.log(`[ExerciseDB v2] Searching: ${url}`);
 
   try {
@@ -36,7 +31,7 @@ async function searchExercises(query: string): Promise<ExerciseV2[]> {
       method: 'GET',
       headers: {
         'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': RAPIDAPI_HOST,
+        'x-rapidapi-host': RAPIDAPI_HOST,
       },
     });
 
@@ -49,9 +44,9 @@ async function searchExercises(query: string): Promise<ExerciseV2[]> {
     }
 
     const data = await response.json();
-    console.log(`[ExerciseDB v2] Response:`, JSON.stringify(data, null, 2).substring(0, 500));
+    console.log(`[ExerciseDB v2] Response:`, JSON.stringify(data, null, 2).substring(0, 1000));
 
-    // Handle different response structures
+    // Handle v2 response structure
     if (data.data?.exercises) {
       return data.data.exercises;
     }
@@ -73,7 +68,7 @@ async function searchExercises(query: string): Promise<ExerciseV2[]> {
  * Get all exercises (for browsing)
  */
 async function getAllExercises(limit: number = 10): Promise<ExerciseV2[]> {
-  const url = `${BASE_URL}/exercises?limit=${limit}`;
+  const url = `${BASE_URL}/api/v1/exercises?limit=${limit}`;
   console.log(`[ExerciseDB v2] Getting all exercises: ${url}`);
 
   try {
@@ -81,7 +76,7 @@ async function getAllExercises(limit: number = 10): Promise<ExerciseV2[]> {
       method: 'GET',
       headers: {
         'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': RAPIDAPI_HOST,
+        'x-rapidapi-host': RAPIDAPI_HOST,
       },
     });
 
@@ -94,7 +89,7 @@ async function getAllExercises(limit: number = 10): Promise<ExerciseV2[]> {
     }
 
     const data = await response.json();
-    console.log(`[ExerciseDB v2] Full response structure:`, JSON.stringify(data, null, 2).substring(0, 1000));
+    console.log(`[ExerciseDB v2] Full response:`, JSON.stringify(data, null, 2).substring(0, 1000));
 
     if (data.data?.exercises) {
       return data.data.exercises;
@@ -149,11 +144,11 @@ export async function resolveExercise(
   let imageUrl: string | null = null;
 
   if (exercise.imageUrl) {
-    // If it's a relative path, construct full URL
+    // If it's a full URL, use it directly
     if (exercise.imageUrl.startsWith('http')) {
       imageUrl = exercise.imageUrl;
     } else {
-      // Try CDN URL pattern
+      // Construct CDN URL
       imageUrl = `https://media.exercisedb.dev/image/${exercise.imageUrl}`;
     }
   }
