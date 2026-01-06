@@ -1,22 +1,35 @@
-import { ExerciseDBResult } from './types';
-
+// ExerciseDB v2 API wrapper
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
-const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'exercisedb.p.rapidapi.com';
+const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'exercisedb-api.p.rapidapi.com';
 const BASE_URL = `https://${RAPIDAPI_HOST}`;
 
-interface ExerciseResponse {
-  id: string;
+// v2 API response structure
+interface ExerciseV2 {
+  exerciseId: string;
   name: string;
-  target: string;
-  equipment: string;
-  bodyPart: string;
+  imageUrl: string;
+  videoUrl: string;
+  equipments: string[];
+  bodyParts: string[];
+  targetMuscles: string[];
   secondaryMuscles: string[];
   instructions: string[];
+  overview: string;
 }
 
-async function fetchFromExerciseDB(endpoint: string): Promise<any[]> {
-  const url = `${BASE_URL}${endpoint}`;
-  console.log(`[ExerciseDB] Fetching: ${url}`);
+interface SearchResponse {
+  success: boolean;
+  data: {
+    exercises: ExerciseV2[];
+  };
+}
+
+/**
+ * Search exercises by name using v2 API
+ */
+async function searchExercises(query: string): Promise<ExerciseV2[]> {
+  const url = `${BASE_URL}/exercises?search=${encodeURIComponent(query)}&limit=10`;
+  console.log(`[ExerciseDB v2] Searching: ${url}`);
 
   try {
     const response = await fetch(url, {
@@ -27,34 +40,41 @@ async function fetchFromExerciseDB(endpoint: string): Promise<any[]> {
       },
     });
 
-    console.log(`[ExerciseDB] Response status: ${response.status}`);
+    console.log(`[ExerciseDB v2] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[ExerciseDB] API error: ${response.status} - ${errorText}`);
+      console.error(`[ExerciseDB v2] API error: ${response.status} - ${errorText}`);
       return [];
     }
 
     const data = await response.json();
+    console.log(`[ExerciseDB v2] Response:`, JSON.stringify(data, null, 2).substring(0, 500));
 
-    // Log FULL first result to see all fields including gifUrl
-    if (Array.isArray(data) && data.length > 0) {
-      console.log(`[ExerciseDB] FULL FIRST RESULT:`, JSON.stringify(data[0], null, 2));
+    // Handle different response structures
+    if (data.data?.exercises) {
+      return data.data.exercises;
+    }
+    if (Array.isArray(data)) {
+      return data;
+    }
+    if (data.exercises) {
+      return data.exercises;
     }
 
-    return Array.isArray(data) ? data : [];
+    return [];
   } catch (error) {
-    console.error(`[ExerciseDB] Fetch error:`, error);
+    console.error(`[ExerciseDB v2] Fetch error:`, error);
     return [];
   }
 }
 
 /**
- * Get exercise by ID - this endpoint might return gifUrl
+ * Get all exercises (for browsing)
  */
-async function getExerciseById(id: string): Promise<ExerciseResponse | null> {
-  const url = `${BASE_URL}/exercises/exercise/${id}`;
-  console.log(`[ExerciseDB] Getting exercise by ID: ${url}`);
+async function getAllExercises(limit: number = 10): Promise<ExerciseV2[]> {
+  const url = `${BASE_URL}/exercises?limit=${limit}`;
+  console.log(`[ExerciseDB v2] Getting all exercises: ${url}`);
 
   try {
     const response = await fetch(url, {
@@ -65,139 +85,55 @@ async function getExerciseById(id: string): Promise<ExerciseResponse | null> {
       },
     });
 
-    if (!response.ok) {
-      return null;
-    }
-
-    return await response.json();
-  } catch (error) {
-    return null;
-  }
-}
-
-/**
- * Search for an exercise by name
- */
-export async function searchByName(name: string): Promise<ExerciseResponse | null> {
-  const encodedName = encodeURIComponent(name.toLowerCase());
-  const results = await fetchFromExerciseDB(`/exercises/name/${encodedName}?limit=10`);
-
-  if (results.length === 0) {
-    return null;
-  }
-
-  // Try exact match first
-  const exactMatch = results.find(
-    (ex) => ex.name.toLowerCase() === name.toLowerCase()
-  );
-  if (exactMatch) {
-    return exactMatch;
-  }
-
-  // Return first result as best match
-  return results[0];
-}
-
-/**
- * Search for exercises by target muscle
- */
-export async function searchByTarget(target: string): Promise<ExerciseResponse | null> {
-  const normalizedTarget = normalizeTarget(target);
-  const results = await fetchFromExerciseDB(`/exercises/target/${normalizedTarget}?limit=5`);
-
-  if (results.length === 0) {
-    return null;
-  }
-
-  return results[0];
-}
-
-/**
- * Normalize target muscle names to ExerciseDB format
- */
-function normalizeTarget(target: string): string {
-  const targetMap: Record<string, string> = {
-    'chest': 'pectorals',
-    'pecs': 'pectorals',
-    'pectorals': 'pectorals',
-    'back': 'lats',
-    'lats': 'lats',
-    'latissimus': 'lats',
-    'shoulders': 'delts',
-    'delts': 'delts',
-    'deltoids': 'delts',
-    'biceps': 'biceps',
-    'triceps': 'triceps',
-    'quads': 'quads',
-    'quadriceps': 'quads',
-    'hamstrings': 'hamstrings',
-    'glutes': 'glutes',
-    'calves': 'calves',
-    'abs': 'abs',
-    'core': 'abs',
-    'abdominals': 'abs',
-    'forearms': 'forearms',
-    'traps': 'traps',
-    'trapezius': 'traps',
-    'adductors': 'adductors',
-    'abductors': 'abductors',
-    'upper back': 'upper back',
-    'spine': 'spine',
-  };
-
-  const normalized = target.toLowerCase().trim();
-  return targetMap[normalized] || normalized;
-}
-
-/**
- * Fetch single exercise by ID to get full details including gifUrl
- */
-async function fetchExerciseById(id: string): Promise<any> {
-  const url = `${BASE_URL}/exercises/exercise/${id}`;
-  console.log(`[ExerciseDB] Fetching single exercise: ${url}`);
-
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': RAPIDAPI_HOST,
-      },
-    });
+    console.log(`[ExerciseDB v2] Response status: ${response.status}`);
 
     if (!response.ok) {
-      console.error(`[ExerciseDB] Single fetch failed: ${response.status}`);
-      return null;
+      const errorText = await response.text();
+      console.error(`[ExerciseDB v2] API error: ${response.status} - ${errorText}`);
+      return [];
     }
 
     const data = await response.json();
-    console.log(`[ExerciseDB] Single exercise response keys:`, Object.keys(data));
-    if (data.gifUrl) {
-      console.log(`[ExerciseDB] Found gifUrl: ${data.gifUrl}`);
+    console.log(`[ExerciseDB v2] Full response structure:`, JSON.stringify(data, null, 2).substring(0, 1000));
+
+    if (data.data?.exercises) {
+      return data.data.exercises;
     }
-    return data;
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    return [];
   } catch (error) {
-    console.error(`[ExerciseDB] Single fetch error:`, error);
-    return null;
+    console.error(`[ExerciseDB v2] Fetch error:`, error);
+    return [];
   }
 }
 
 /**
- * Resolve an exercise - first try by name, then fallback to target
+ * Resolve an exercise - search by name and get image URL
  */
 export async function resolveExercise(
   name: string,
   targetHint: string
 ): Promise<{ gifUrl: string | null; name: string; equipment: string | null; target: string | null }> {
-  // First try by name
-  let exercise = await searchByName(name);
+  // Search for the exercise
+  let exercises = await searchExercises(name);
 
-  // If not found, try by target
-  if (!exercise && targetHint) {
-    exercise = await searchByTarget(targetHint);
+  // If no results, try with target hint
+  if (exercises.length === 0 && targetHint) {
+    console.log(`[ExerciseDB v2] No results for "${name}", trying target: ${targetHint}`);
+    exercises = await searchExercises(targetHint);
   }
 
-  if (!exercise) {
+  // If still no results, try getting any exercises
+  if (exercises.length === 0) {
+    console.log(`[ExerciseDB v2] No search results, getting default exercises`);
+    exercises = await getAllExercises(5);
+  }
+
+  if (exercises.length === 0) {
+    console.log(`[ExerciseDB v2] No exercises found at all`);
     return {
       gifUrl: null,
       name: name,
@@ -206,24 +142,39 @@ export async function resolveExercise(
     };
   }
 
-  // Check if exercise already has gifUrl from API response
-  let gifUrl: string | null = null;
+  // Find best match
+  const exercise = exercises[0];
 
-  if ((exercise as any).gifUrl) {
-    gifUrl = (exercise as any).gifUrl;
-    console.log(`[ExerciseDB] Found gifUrl in response: ${gifUrl}`);
-  } else {
-    // Fallback to proxy
-    gifUrl = `/api/exercise-image/${exercise.id}`;
-    console.log(`[ExerciseDB] No gifUrl, using proxy: ${gifUrl}`);
+  // Build image URL - v2 API returns imageUrl field
+  let imageUrl: string | null = null;
+
+  if (exercise.imageUrl) {
+    // If it's a relative path, construct full URL
+    if (exercise.imageUrl.startsWith('http')) {
+      imageUrl = exercise.imageUrl;
+    } else {
+      // Try CDN URL pattern
+      imageUrl = `https://media.exercisedb.dev/image/${exercise.imageUrl}`;
+    }
   }
 
-  console.log(`[ExerciseDB] Final - Exercise: ${exercise.name}, ID: ${exercise.id}, GIF: ${gifUrl}`);
+  console.log(`[ExerciseDB v2] Found exercise: ${exercise.name}, imageUrl: ${imageUrl}`);
 
   return {
-    gifUrl,
-    name: exercise.name,
-    equipment: exercise.equipment,
-    target: exercise.target,
+    gifUrl: imageUrl,
+    name: exercise.name || name,
+    equipment: exercise.equipments?.[0] || null,
+    target: exercise.targetMuscles?.[0] || exercise.bodyParts?.[0] || null,
   };
+}
+
+// Backward compatibility exports
+export async function searchByName(name: string): Promise<any> {
+  const results = await searchExercises(name);
+  return results[0] || null;
+}
+
+export async function searchByTarget(target: string): Promise<any> {
+  const results = await searchExercises(target);
+  return results[0] || null;
 }
