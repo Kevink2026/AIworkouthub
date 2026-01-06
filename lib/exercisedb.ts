@@ -46,7 +46,11 @@ async function searchExercises(query: string): Promise<ExerciseV2[]> {
     const data = await response.json();
     console.log(`[ExerciseDB v2] Response:`, JSON.stringify(data, null, 2).substring(0, 1000));
 
-    // Handle v2 response structure
+    // Handle v2 response structure: { success: true, data: [...exercises...] }
+    if (data.success && Array.isArray(data.data)) {
+      console.log(`[ExerciseDB v2] Found ${data.data.length} exercises`);
+      return data.data;
+    }
     if (data.data?.exercises) {
       return data.data.exercises;
     }
@@ -91,6 +95,11 @@ async function getAllExercises(limit: number = 10): Promise<ExerciseV2[]> {
     const data = await response.json();
     console.log(`[ExerciseDB v2] Full response:`, JSON.stringify(data, null, 2).substring(0, 1000));
 
+    // Handle v2 response structure: { success: true, data: [...exercises...] }
+    if (data.success && Array.isArray(data.data)) {
+      console.log(`[ExerciseDB v2] Found ${data.data.length} exercises`);
+      return data.data;
+    }
     if (data.data?.exercises) {
       return data.data.exercises;
     }
