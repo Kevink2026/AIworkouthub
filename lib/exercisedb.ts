@@ -142,8 +142,10 @@ export async function resolveExercise(
     };
   }
 
-  // Construct GIF URL from exercise ID (API no longer returns gifUrl directly)
-  const gifUrl = exercise.id ? `https://v2.exercisedb.io/image/${exercise.id}` : null;
+  // Construct GIF URL from exercise ID using original CloudFront CDN
+  const gifUrl = exercise.id
+    ? `https://d205bpvrqc9yn1.cloudfront.net/${exercise.id}.gif`
+    : null;
   console.log(`[ExerciseDB] Constructed GIF URL: ${gifUrl}`);
 
   return {
