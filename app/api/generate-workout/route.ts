@@ -26,21 +26,25 @@ export async function POST(request: NextRequest) {
     const workout = await generateWorkout(userInput);
 
     // Step 2: Enrich each exercise with GIF from ExerciseDB
-    const enrichedExercises: EnrichedExercise[] = await Promise.all(
-      workout.exercises.map(async (exercise) => {
-        const resolved = await resolveExercise(
-          exercise.name,
-          exercise.targetHint
-        );
+    // Process sequentially with delay to avoid rate limiting (429)
+    const enrichedExercises: EnrichedExercise[] = [];
 
-        return {
-          ...exercise,
-          gifUrl: resolved.gifUrl,
-          equipment: resolved.equipment,
-          target: resolved.target,
-        };
-      })
-    );
+    for (const exercise of workout.exercises) {
+      const resolved = await resolveExercise(
+        exercise.name,
+        exercise.targetHint
+      );
+
+      enrichedExercises.push({
+        ...exercise,
+        gifUrl: resolved.gifUrl,
+        equipment: resolved.equipment,
+        target: resolved.target,
+      });
+
+      // Small delay between requests to avoid rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
 
     const enrichedWorkout: EnrichedWorkout = {
       title: workout.title,

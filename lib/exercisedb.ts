@@ -29,7 +29,9 @@ async function fetchFromExerciseDB(endpoint: string): Promise<ExerciseDBResult[]
     console.log(`[ExerciseDB] Results count: ${Array.isArray(data) ? data.length : 'not an array'}`);
 
     if (Array.isArray(data) && data.length > 0) {
-      console.log(`[ExerciseDB] First result: ${data[0]?.name}, gifUrl: ${data[0]?.gifUrl ? 'YES' : 'NO'}`);
+      // Log all keys to see actual API response structure
+      console.log(`[ExerciseDB] First result keys:`, Object.keys(data[0]));
+      console.log(`[ExerciseDB] First result:`, JSON.stringify(data[0], null, 2));
     }
 
     return Array.isArray(data) ? data : [];
