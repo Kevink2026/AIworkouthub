@@ -14,7 +14,7 @@ interface ExerciseResponse {
   instructions: string[];
 }
 
-async function fetchFromExerciseDB(endpoint: string): Promise<ExerciseResponse[]> {
+async function fetchFromExerciseDB(endpoint: string): Promise<any[]> {
   const url = `${BASE_URL}${endpoint}`;
   console.log(`[ExerciseDB] Fetching: ${url}`);
 
@@ -36,6 +36,12 @@ async function fetchFromExerciseDB(endpoint: string): Promise<ExerciseResponse[]
     }
 
     const data = await response.json();
+
+    // Log FULL first result to see all fields including gifUrl
+    if (Array.isArray(data) && data.length > 0) {
+      console.log(`[ExerciseDB] FULL FIRST RESULT:`, JSON.stringify(data[0], null, 2));
+    }
+
     return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error(`[ExerciseDB] Fetch error:`, error);
@@ -200,8 +206,18 @@ export async function resolveExercise(
     };
   }
 
-  // Use our local proxy to try fetching the GIF with various URL patterns
-  const gifUrl = `/api/exercise-image/${exercise.id}`;
+  // Check if exercise already has gifUrl from API response
+  let gifUrl: string | null = null;
+
+  if ((exercise as any).gifUrl) {
+    gifUrl = (exercise as any).gifUrl;
+    console.log(`[ExerciseDB] Found gifUrl in response: ${gifUrl}`);
+  } else {
+    // Fallback to proxy
+    gifUrl = `/api/exercise-image/${exercise.id}`;
+    console.log(`[ExerciseDB] No gifUrl, using proxy: ${gifUrl}`);
+  }
+
   console.log(`[ExerciseDB] Final - Exercise: ${exercise.name}, ID: ${exercise.id}, GIF: ${gifUrl}`);
 
   return {
