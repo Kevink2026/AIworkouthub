@@ -142,8 +142,12 @@ export async function resolveExercise(
     };
   }
 
+  // Construct GIF URL from exercise ID (API no longer returns gifUrl directly)
+  const gifUrl = exercise.id ? `https://v2.exercisedb.io/image/${exercise.id}` : null;
+  console.log(`[ExerciseDB] Constructed GIF URL: ${gifUrl}`);
+
   return {
-    gifUrl: exercise.gifUrl,
+    gifUrl,
     name: exercise.name,
     equipment: exercise.equipment,
     target: exercise.target,
