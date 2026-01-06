@@ -1,157 +1,129 @@
 import { ExerciseDBResult } from './types';
 
-const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
-const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'exercisedb.p.rapidapi.com';
-const BASE_URL = `https://${RAPIDAPI_HOST}`;
+// Using wger.de - free and open source fitness API
+const WGER_BASE_URL = 'https://wger.de/api/v2';
 
-async function fetchFromExerciseDB(endpoint: string): Promise<ExerciseDBResult[]> {
-  const url = `${BASE_URL}${endpoint}`;
-  console.log(`[ExerciseDB] Fetching: ${url}`);
+interface WgerExercise {
+  id: number;
+  name: string;
+  description: string;
+  category: { id: number; name: string };
+  muscles: { id: number; name: string }[];
+  equipment: { id: number; name: string }[];
+  images: { id: number; image: string }[];
+}
 
+interface WgerSearchResult {
+  suggestions: {
+    value: string;
+    data: {
+      id: number;
+      name: string;
+      category: string;
+      image: string | null;
+      image_thumbnail: string | null;
+    };
+  }[];
+}
+
+/**
+ * Search for exercise on wger.de by name
+ */
+async function searchWger(name: string): Promise<{ gifUrl: string | null; name: string; equipment: string | null; target: string | null }> {
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': RAPIDAPI_HOST,
-      },
-    });
+    // Use the search/autocomplete endpoint
+    const searchUrl = `${WGER_BASE_URL}/exercise/search/?term=${encodeURIComponent(name)}&language=2`;
+    console.log(`[Wger] Searching: ${searchUrl}`);
 
-    console.log(`[ExerciseDB] Response status: ${response.status}`);
+    const response = await fetch(searchUrl);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[ExerciseDB] API error: ${response.status} - ${errorText}`);
-      return [];
+      console.error(`[Wger] Search failed: ${response.status}`);
+      return { gifUrl: null, name, equipment: null, target: null };
     }
 
-    const data = await response.json();
-    console.log(`[ExerciseDB] Results count: ${Array.isArray(data) ? data.length : 'not an array'}`);
+    const data: WgerSearchResult = await response.json();
+    console.log(`[Wger] Found ${data.suggestions?.length || 0} suggestions`);
 
-    if (Array.isArray(data) && data.length > 0) {
-      // Log all keys to see actual API response structure
-      console.log(`[ExerciseDB] First result keys:`, Object.keys(data[0]));
-      console.log(`[ExerciseDB] First result:`, JSON.stringify(data[0], null, 2));
+    if (data.suggestions && data.suggestions.length > 0) {
+      const best = data.suggestions[0];
+      console.log(`[Wger] Best match: ${best.data.name}, image: ${best.data.image || 'none'}`);
+
+      // If we have an image, return it
+      if (best.data.image) {
+        return {
+          gifUrl: best.data.image,
+          name: best.data.name,
+          equipment: null,
+          target: best.data.category || null,
+        };
+      }
+
+      // Try to get images from exercise detail endpoint
+      const exerciseId = best.data.id;
+      const detailUrl = `${WGER_BASE_URL}/exerciseimage/?exercise_base=${exerciseId}&limit=1`;
+      console.log(`[Wger] Fetching images: ${detailUrl}`);
+
+      const imageResponse = await fetch(detailUrl);
+      if (imageResponse.ok) {
+        const imageData = await imageResponse.json();
+        if (imageData.results && imageData.results.length > 0) {
+          const imageUrl = imageData.results[0].image;
+          console.log(`[Wger] Found image: ${imageUrl}`);
+          return {
+            gifUrl: imageUrl,
+            name: best.data.name,
+            equipment: null,
+            target: best.data.category || null,
+          };
+        }
+      }
+
+      return {
+        gifUrl: null,
+        name: best.data.name,
+        equipment: null,
+        target: best.data.category || null,
+      };
     }
 
-    return Array.isArray(data) ? data : [];
+    return { gifUrl: null, name, equipment: null, target: null };
   } catch (error) {
-    console.error(`[ExerciseDB] Fetch error:`, error);
-    return [];
+    console.error(`[Wger] Error:`, error);
+    return { gifUrl: null, name, equipment: null, target: null };
   }
 }
 
 /**
- * Search for an exercise by name
- */
-export async function searchByName(name: string): Promise<ExerciseDBResult | null> {
-  const encodedName = encodeURIComponent(name.toLowerCase());
-  const results = await fetchFromExerciseDB(`/exercises/name/${encodedName}?limit=10`);
-
-  if (results.length === 0) {
-    return null;
-  }
-
-  // Try exact match first
-  const exactMatch = results.find(
-    (ex) => ex.name.toLowerCase() === name.toLowerCase()
-  );
-  if (exactMatch) {
-    return exactMatch;
-  }
-
-  // Return first result as best match
-  return results[0];
-}
-
-/**
- * Search for exercises by target muscle
- */
-export async function searchByTarget(target: string): Promise<ExerciseDBResult | null> {
-  const normalizedTarget = normalizeTarget(target);
-  const results = await fetchFromExerciseDB(`/exercises/target/${normalizedTarget}?limit=5`);
-
-  if (results.length === 0) {
-    return null;
-  }
-
-  return results[0];
-}
-
-/**
- * Normalize target muscle names to ExerciseDB format
- */
-function normalizeTarget(target: string): string {
-  const targetMap: Record<string, string> = {
-    'chest': 'pectorals',
-    'pecs': 'pectorals',
-    'pectorals': 'pectorals',
-    'back': 'lats',
-    'lats': 'lats',
-    'latissimus': 'lats',
-    'shoulders': 'delts',
-    'delts': 'delts',
-    'deltoids': 'delts',
-    'biceps': 'biceps',
-    'triceps': 'triceps',
-    'quads': 'quads',
-    'quadriceps': 'quads',
-    'hamstrings': 'hamstrings',
-    'glutes': 'glutes',
-    'calves': 'calves',
-    'abs': 'abs',
-    'core': 'abs',
-    'abdominals': 'abs',
-    'forearms': 'forearms',
-    'traps': 'traps',
-    'trapezius': 'traps',
-    'adductors': 'adductors',
-    'abductors': 'abductors',
-    'upper back': 'upper back',
-    'spine': 'spine',
-    'serratus anterior': 'serratus anterior',
-    'levator scapulae': 'levator scapulae',
-    'cardiovascular system': 'cardiovascular system',
-  };
-
-  const normalized = target.toLowerCase().trim();
-  return targetMap[normalized] || normalized;
-}
-
-/**
- * Resolve an exercise - first try by name, then fallback to target
+ * Resolve an exercise - search on wger.de
  */
 export async function resolveExercise(
   name: string,
   targetHint: string
 ): Promise<{ gifUrl: string | null; name: string; equipment: string | null; target: string | null }> {
-  // First try by name
-  let exercise = await searchByName(name);
+  // Try searching by name first
+  let result = await searchWger(name);
 
-  // If not found, try by target
-  if (!exercise && targetHint) {
-    exercise = await searchByTarget(targetHint);
+  // If no image found and we have a target hint, try searching by that
+  if (!result.gifUrl && targetHint) {
+    console.log(`[Wger] No image for "${name}", trying target: ${targetHint}`);
+    const targetResult = await searchWger(`${targetHint} exercise`);
+    if (targetResult.gifUrl) {
+      return {
+        ...targetResult,
+        name: name, // Keep original exercise name
+      };
+    }
   }
 
-  if (!exercise) {
-    return {
-      gifUrl: null,
-      name: name,
-      equipment: null,
-      target: null,
-    };
-  }
+  return result;
+}
 
-  // Construct GIF URL from exercise ID using original CloudFront CDN
-  const gifUrl = exercise.id
-    ? `https://d205bpvrqc9yn1.cloudfront.net/${exercise.id}.gif`
-    : null;
-  console.log(`[ExerciseDB] Constructed GIF URL: ${gifUrl}`);
+// Keep these for backward compatibility but they now use wger
+export async function searchByName(name: string): Promise<ExerciseDBResult | null> {
+  return null; // Not used anymore
+}
 
-  return {
-    gifUrl,
-    name: exercise.name,
-    equipment: exercise.equipment,
-    target: exercise.target,
-  };
+export async function searchByTarget(target: string): Promise<ExerciseDBResult | null> {
+  return null; // Not used anymore
 }
