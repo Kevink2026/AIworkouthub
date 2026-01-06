@@ -200,18 +200,8 @@ export async function resolveExercise(
     };
   }
 
-  // Try to get full exercise details (might include gifUrl)
-  const fullExercise = await fetchExerciseById(exercise.id);
-
-  let gifUrl: string | null = null;
-
-  if (fullExercise?.gifUrl) {
-    gifUrl = fullExercise.gifUrl;
-  } else {
-    // Fallback: try known URL patterns
-    gifUrl = `https://v2.exercisedb.io/image/${exercise.id}`;
-  }
-
+  // Use our local proxy to try fetching the GIF with various URL patterns
+  const gifUrl = `/api/exercise-image/${exercise.id}`;
   console.log(`[ExerciseDB] Final - Exercise: ${exercise.name}, ID: ${exercise.id}, GIF: ${gifUrl}`);
 
   return {
