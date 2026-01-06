@@ -5,21 +5,38 @@ const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'exercisedb.p.rapidapi.com';
 const BASE_URL = `https://${RAPIDAPI_HOST}`;
 
 async function fetchFromExerciseDB(endpoint: string): Promise<ExerciseDBResult[]> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    method: 'GET',
-    headers: {
-      'X-RapidAPI-Key': RAPIDAPI_KEY,
-      'X-RapidAPI-Host': RAPIDAPI_HOST,
-    },
-  });
+  const url = `${BASE_URL}${endpoint}`;
+  console.log(`[ExerciseDB] Fetching: ${url}`);
 
-  if (!response.ok) {
-    console.error(`ExerciseDB API error: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': RAPIDAPI_KEY,
+        'X-RapidAPI-Host': RAPIDAPI_HOST,
+      },
+    });
+
+    console.log(`[ExerciseDB] Response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[ExerciseDB] API error: ${response.status} - ${errorText}`);
+      return [];
+    }
+
+    const data = await response.json();
+    console.log(`[ExerciseDB] Results count: ${Array.isArray(data) ? data.length : 'not an array'}`);
+
+    if (Array.isArray(data) && data.length > 0) {
+      console.log(`[ExerciseDB] First result: ${data[0]?.name}, gifUrl: ${data[0]?.gifUrl ? 'YES' : 'NO'}`);
+    }
+
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error(`[ExerciseDB] Fetch error:`, error);
     return [];
   }
-
-  const data = await response.json();
-  return Array.isArray(data) ? data : [];
 }
 
 /**
